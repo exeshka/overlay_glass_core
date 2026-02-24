@@ -98,7 +98,7 @@ Tapping the button opens the overlay with a morph from the trigger area; tapping
 ## Demo
 
 
-   [Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif?raw=true)
+   [Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
   
 
 ## What this package does (and doesn’t)
