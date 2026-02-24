@@ -2,7 +2,7 @@
 
 Morph animation from a trigger widget into a glass overlay panel (liquid glass). You provide the trigger and overlay content — the package handles only the animation and glass effect.
 
-![Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
+![Demo](https://github.com/exeshka/overlay_glass_core/raw/main/assets/record.gif)
 
 ## Installation
 
@@ -10,8 +10,8 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  overlay_glass_core: 
-  liquid_glass_renderer:
+  overlay_glass_core: ^0.0.1
+  liquid_glass_renderer: ^0.2.0-dev.4
 ```
 
 Then run:
@@ -93,6 +93,49 @@ class _MyScreenState extends State<MyScreen> {
 
 Tapping the button opens the overlay with a morph from the trigger area; tapping the dimmed barrier closes the menu.
 
+### Variant: Navigator + Hero
+
+Same glass look, but the “overlay” is a **route** and the transition uses **Hero**. Use when you want the panel to live in the Navigator stack (e.g. for back button or deep linking).
+
+1. Wrap only your **content** in [GlassCoreHeroTrigger] with a `heroTag`; glass is applied outside with `startGlassSettings` / `startBorderRadius`.
+2. Push the panel with [pushGlassCoreRoute] using the same `heroTag`. Pass matching `startGlassSettings` / `startBorderRadius` so the flight can lerp from start to end glass.
+
+```dart
+import 'package:overlay_glass_core/overlay_glass_core.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+
+// Trigger: Hero wraps only content; glass uses start* for the flight
+GlassCoreHeroTrigger(
+  heroTag: 'menu',
+  startGlassSettings: LiquidGlassSettings(blur: 20),
+  startBorderRadius: 34,
+  child: InkWell(
+    onTap: () => pushGlassCoreRoute(
+      context,
+      heroTag: 'menu',
+      child: YourMenuContent(),
+      startGlassSettings: LiquidGlassSettings(blur: 20),
+      startBorderRadius: 34,
+      glassSettings: LiquidGlassSettings(blur: 24),
+      borderRadius: 34,
+      barrierDismiss: true,
+    ),
+    child: Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.add),
+          SizedBox(width: 8),
+          Text('Open menu'),
+        ],
+      ),
+    ),
+  ),
+)
+```
+
+During the flight, the naked content is wrapped in glass and animated (lerp from start to end); tap outside or pop the route to close.
 
 ## What this package does (and doesn’t)
 

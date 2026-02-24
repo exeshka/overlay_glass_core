@@ -4,6 +4,8 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import 'package:overlay_glass_core/overlay_glass_core.dart';
 
+import 'navigator_demo_page.dart';
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
 
@@ -66,7 +68,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget _buildMoreOverlay() {
+  Widget _buildMoreOverlay(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -103,6 +105,20 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             _menuItem(icon: CupertinoIcons.gear, label: 'Settings'),
             _menuItem(icon: CupertinoIcons.question_circle, label: 'Help'),
+            _menuItem(
+              icon: CupertinoIcons.rectangle_stack,
+              label: 'Navigator + Hero demo',
+              onTap: () {
+                _topController.close();
+                _menuController.close();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NavigatorDemoPage(),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -346,13 +362,14 @@ class _MyHomePageState extends State<MyHomePage> {
     required String label,
     String? subtitle,
     Color? labelColor,
+    VoidCallback? onTap,
   }) {
     final color = labelColor ?? Colors.white.withOpacity(0.9);
     final iconColor = labelColor ?? Colors.white.withOpacity(0.7);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {},
+        onTap: onTap ?? () {},
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -520,7 +537,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         _glassButton(
                           icon: CupertinoIcons.ellipsis,
                           onTap: () =>
-                              _showMenu(_menuController, _buildMoreOverlay()),
+                              _showMenu(_menuController, _buildMoreOverlay(context)),
                         ),
                       ],
                     ),
