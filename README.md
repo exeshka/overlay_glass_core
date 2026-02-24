@@ -95,28 +95,11 @@ class _MyScreenState extends State<MyScreen> {
 
 Tapping the button opens the overlay with a morph from the trigger area; tapping the dimmed barrier closes the menu.
 
-## Demo (video / GIF on pub.dev)
+## Demo
 
-**pub.dev does not embed `<video>` or iframes** — they are stripped when the README is rendered. Use one of these so the demo shows on the package page:
 
-1. **Animated GIF** (recommended) — works directly on pub.dev.  
-   - Record the screen (e.g. Simulator), export as GIF (e.g. with a converter or `ffmpeg`).  
-   - Put the file in the repo (e.g. `doc/demo.gif` or in the package root).  
-   - In README, use a **raw** URL so pub.dev can load it, for example from GitHub:
-   ```markdown
-   ![Demo](https://github.com/YOUR_USERNAME/overlay_glass_core/raw/main/doc/demo.gif)
-   ```
-   - Or host the GIF elsewhere and use that URL in the same `![Alt](url)` syntax.
-
-2. **YouTube (or other host) + thumbnail** — video stays external, README shows a clickable image.  
-   - Upload the video to YouTube (unlisted is fine).  
-   - Add a thumbnail image (screenshot or YouTube’s thumbnail) and link it to the video:
-   ```markdown
-   [![Watch the demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
-   ```
-   Replace `YOUR_VIDEO_ID` with the ID from the video URL.
-
-Put the chosen block near the top of the README (e.g. right after the short description or after the first code example) so it’s visible on pub.dev.
+   [Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif?raw=true)
+  
 
 ## What this package does (and doesn’t)
 
