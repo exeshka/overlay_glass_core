@@ -2,7 +2,7 @@
 
 Morph animation from a trigger widget into a glass overlay panel (liquid glass). You provide the trigger and overlay content — the package handles only the animation and glass effect.
 
-![Demo](https://github.com/exeshka/overlay_glass_core/raw/main/assets/record.gif)
+![Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
 
 ## Installation
 
@@ -10,8 +10,8 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  overlay_glass_core: ^0.0.1
-  liquid_glass_renderer: ^0.2.0-dev.4  # required by the package
+  overlay_glass_core: 
+  liquid_glass_renderer:
 ```
 
 Then run:
@@ -93,11 +93,6 @@ class _MyScreenState extends State<MyScreen> {
 
 Tapping the button opens the overlay with a morph from the trigger area; tapping the dimmed barrier closes the menu.
 
-## Demo
-
-
-   ![Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
-  
 
 ## What this package does (and doesn’t)
 
