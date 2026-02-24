@@ -1,6 +1,9 @@
 name: overlay_glass_core
-description: "A new Flutter package project."
+description: Morph animation from a trigger widget into a glass overlay panel (liquid glass). Animation and glass effect only — you provide the trigger and overlay content.
 version: 0.0.1
+homepage: https://github.com/exeshka/overlay_glass_core
+repository: https://github.com/exeshka/overlay_glass_core
+issue_tracker: https://github.com/exeshka/overlay_glass_core/issues
 
 environment:
   sdk: ^3.10.7
