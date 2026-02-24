@@ -1,0 +1,141 @@
+# overlay_glass_core
+
+Morph animation from a trigger widget into a glass overlay panel (liquid glass). You provide the trigger and overlay content — the package handles only the animation and glass effect.
+
+![Demo](assets/record.gif)
+
+> On pub.dev the image may need a full URL (e.g. `https://github.com/OWNER/REPO/raw/main/assets/record.gif`). On GitHub the relative path above works as-is.
+
+## Installation
+
+Add to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  overlay_glass_core: ^0.0.1
+  liquid_glass_renderer: ^0.2.0-dev.4  # required by the package
+```
+
+Then run:
+
+```bash
+flutter pub get
+```
+
+## Simple example
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:overlay_glass_core/overlay_glass_core.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+
+class MyScreen extends StatefulWidget {
+  @override
+  State<MyScreen> createState() => _MyScreenState();
+}
+
+class _MyScreenState extends State<MyScreen> {
+  final _controller = OverlayGlassCoreController();
+
+  void _openMenu() {
+    _controller.showOverlay(
+      Container(
+        width: 280,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text('Item 1')),
+            ListTile(title: Text('Item 2')),
+          ],
+        ),
+      ),
+      endBorderRadius: 24,
+      glassSettings: LiquidGlassSettings(blur: 24),
+      barrierDismiss: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: 24),
+            child: OverlayGlassCore(
+              controller: _controller,
+              glassSettings: LiquidGlassSettings(blur: 20),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openMenu,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add),
+                        SizedBox(width: 8),
+                        Text('Open menu'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+Tapping the button opens the overlay with a morph from the trigger area; tapping the dimmed barrier closes the menu.
+
+## Demo (video / GIF on pub.dev)
+
+**pub.dev does not embed `<video>` or iframes** — they are stripped when the README is rendered. Use one of these so the demo shows on the package page:
+
+1. **Animated GIF** (recommended) — works directly on pub.dev.  
+   - Record the screen (e.g. Simulator), export as GIF (e.g. with a converter or `ffmpeg`).  
+   - Put the file in the repo (e.g. `doc/demo.gif` or in the package root).  
+   - In README, use a **raw** URL so pub.dev can load it, for example from GitHub:
+   ```markdown
+   ![Demo](https://github.com/YOUR_USERNAME/overlay_glass_core/raw/main/doc/demo.gif)
+   ```
+   - Or host the GIF elsewhere and use that URL in the same `![Alt](url)` syntax.
+
+2. **YouTube (or other host) + thumbnail** — video stays external, README shows a clickable image.  
+   - Upload the video to YouTube (unlisted is fine).  
+   - Add a thumbnail image (screenshot or YouTube’s thumbnail) and link it to the video:
+   ```markdown
+   [![Watch the demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+   ```
+   Replace `YOUR_VIDEO_ID` with the ID from the video URL.
+
+Put the chosen block near the top of the README (e.g. right after the short description or after the first code example) so it’s visible on pub.dev.
+
+## What this package does (and doesn’t)
+
+**Animation and glass only:**
+
+- Morph: the overlay panel expands from the trigger area with your content inside.
+- Glass effect over the content (via `liquid_glass_renderer`).
+- Overlay position is computed automatically (above or below the trigger, with padding from screen edges).
+
+**No layout or UI:**
+
+- The trigger’s look is entirely your widget passed as `child` of `OverlayGlassCore`.
+- The menu’s look is entirely your widget passed as `overlay` in `showOverlay()`.
+- The package does not provide lists, menu items, spacing, etc. — only the animation and glass shell.
+
+## Known issues
+
+- **Trigger inside a scroll.** If the trigger widget is inside scrollable content (e.g. `ListView`, `CustomScrollView`), you may see noticeable **flicker** when opening or closing the overlay. The overlay follows the trigger on scroll and morphs back to it on close; the end of the close animation can look jumpy. Prefer placing the trigger outside the scroll (e.g. in `SafeArea` at the top or bottom of the screen), or account for this in your design.
+
+## More
+
+A full example with multiple overlays and buttons is in the `example/` folder.
