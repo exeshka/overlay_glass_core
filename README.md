@@ -2,9 +2,7 @@
 
 Morph animation from a trigger widget into a glass overlay panel (liquid glass). You provide the trigger and overlay content — the package handles only the animation and glass effect.
 
-![Demo](assets/record.gif)
-
-> On pub.dev the image may need a full URL (e.g. `https://github.com/OWNER/REPO/raw/main/assets/record.gif`). On GitHub the relative path above works as-is.
+![Demo](https://github.com/exeshka/overlay_glass_core/raw/main/assets/record.gif)
 
 ## Installation
 
@@ -98,7 +96,7 @@ Tapping the button opens the overlay with a morph from the trigger area; tapping
 ## Demo
 
 
-   [Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
+   ![Demo](https://github.com/exeshka/overlay_glass_core/blob/main/assets/record.gif)
   
 
 ## What this package does (and doesn’t)
