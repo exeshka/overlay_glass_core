@@ -1,7 +1,10 @@
 import 'dart:ui' show lerpDouble, ImageFilter;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart' show Color;
+import 'package:flutter/rendering.dart' show RenderProxyBox;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:motor/motor.dart';
 
@@ -238,6 +241,9 @@ final ValueNotifier<double> _glassHeroFlightT = ValueNotifier(0.0);
 /// (above/below trigger, centered horizontally). [positionPadding] — padding from screen edges (default 12).
 /// [getTriggerRect] — when set, position is recomputed on every rebuild (e.g. when trigger moves on scroll).
 /// [scheduleRouteRebuild] — call with a callback; when that callback is invoked, the route rebuilds and reads [getTriggerRect] again.
+/// [panelRectNotifier] — when set, panel position and size are taken from [ValueListenable.value] on each
+/// rebuild; route subscribes and rebuilds when the notifier changes. Use to resize/reposition the panel on the fly (e.g. drag-to-expand).
+/// [glassSettingsNotifier] — when set, panel glass is taken from [ValueListenable.value]; use to animate glass on the fly (e.g. with panel resize).
 Future<T?> pushGlassCoreRoute<T>(
   BuildContext context, {
   required Object heroTag,
@@ -255,6 +261,8 @@ Future<T?> pushGlassCoreRoute<T>(
   Size? triggerSize,
   Rect? Function()? getTriggerRect,
   void Function(void Function() markNeedsBuild)? scheduleRouteRebuild,
+  ValueListenable<Rect?>? panelRectNotifier,
+  ValueListenable<LiquidGlassSettings>? glassSettingsNotifier,
   double positionPadding = 12,
 }) {
   final startGlass = startGlassSettings ?? glassSettings;
@@ -289,6 +297,8 @@ Future<T?> pushGlassCoreRoute<T>(
               triggerSize: triggerSize,
               getTriggerRect: getTriggerRect,
               scheduleRouteRebuild: scheduleRouteRebuild,
+              panelRectNotifier: panelRectNotifier,
+              glassSettingsNotifier: glassSettingsNotifier,
               positionPadding: positionPadding,
               startGlassSettings: startGlass,
               startBorderRadius: startRadius,
@@ -332,6 +342,8 @@ class _GlassCoreRoutePage<T> extends StatefulWidget {
     this.triggerSize,
     this.getTriggerRect,
     this.scheduleRouteRebuild,
+    this.panelRectNotifier,
+    this.glassSettingsNotifier,
     this.positionPadding = 12,
     required this.startGlassSettings,
     required this.startBorderRadius,
@@ -352,6 +364,8 @@ class _GlassCoreRoutePage<T> extends StatefulWidget {
   final Size? triggerSize;
   final Rect? Function()? getTriggerRect;
   final void Function(void Function() markNeedsBuild)? scheduleRouteRebuild;
+  final ValueListenable<Rect?>? panelRectNotifier;
+  final ValueListenable<LiquidGlassSettings>? glassSettingsNotifier;
   final double positionPadding;
   final LiquidGlassSettings startGlassSettings;
   final double startBorderRadius;
@@ -373,6 +387,8 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
   final GlobalKey _panelKey = GlobalKey();
   Size? _panelSize;
 
+  VoidCallback? _panelRectListener;
+
   @override
   void initState() {
     super.initState();
@@ -381,6 +397,33 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
         if (mounted) setState(() {});
       });
     }
+    final notifier = widget.panelRectNotifier;
+    if (notifier != null) {
+      _panelRectListener = () {
+        if (mounted) setState(() {});
+      };
+      notifier.addListener(_panelRectListener!);
+    }
+    final glassNotifier = widget.glassSettingsNotifier;
+    if (glassNotifier != null) {
+      _glassSettingsListener = () {
+        if (mounted) setState(() {});
+      };
+      glassNotifier.addListener(_glassSettingsListener!);
+    }
+  }
+
+  VoidCallback? _glassSettingsListener;
+
+  @override
+  void dispose() {
+    if (_panelRectListener != null) {
+      widget.panelRectNotifier?.removeListener(_panelRectListener!);
+    }
+    if (_glassSettingsListener != null) {
+      widget.glassSettingsNotifier?.removeListener(_glassSettingsListener!);
+    }
+    super.dispose();
   }
 
   void _measurePanel() {
@@ -391,9 +434,11 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
     }
   }
 
-  /// Якорь: переданная [position] или rect триггера (GlassCoreHeroTrigger).
+  /// Якорь: переданная [position], [panelRectNotifier].value или rect триггера (GlassCoreHeroTrigger).
   /// По размеру открытой панели определяем, куда её разместить.
   Offset _effectivePosition(BuildContext context) {
+    final panelRect = widget.panelRectNotifier?.value;
+    if (panelRect != null) return panelRect.topLeft;
     if (widget.position != null) return widget.position!;
 
     final screenSize = MediaQuery.sizeOf(context);
@@ -434,7 +479,92 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
   @override
   Widget build(BuildContext context) {
     final effectivePosition = _effectivePosition(context);
+    final dynamicRect = widget.panelRectNotifier?.value;
     WidgetsBinding.instance.addPostFrameCallback((_) => _measurePanel());
+    final hero = Hero(
+      tag: widget.heroTag,
+      transitionOnUserGestures: true,
+      createRectTween: (begin, end) =>
+          _CurvedRectTween(begin: begin, end: end, curve: widget.flightCurve),
+
+      flightShuttleBuilder:
+          (
+            BuildContext flightContext,
+            Animation<double> animation,
+            HeroFlightDirection flightDirection,
+            BuildContext fromHeroContext,
+            BuildContext toHeroContext,
+          ) {
+            final fromContent = _extractGlassHeroContent(
+              (fromHeroContext.widget as Hero).child,
+            );
+            final toContent = _extractGlassHeroContent(
+              (toHeroContext.widget as Hero).child,
+            );
+            final isPush = flightDirection == HeroFlightDirection.push;
+            return ValueListenableBuilder(
+              valueListenable: animation,
+              builder: (BuildContext context, double value, Widget? _) {
+                final t = value.clamp(0.0, 1.0);
+                // Incoming content (e.g. modal) visible earlier: opacity ~1 by ~40% of flight.
+                final toOpacityCurve = Curves.easeOut.transform(t);
+                final fromOpacity = (1 - t).clamp(0.0, 1.0);
+                final toOpacity = toOpacityCurve.clamp(0.0, 1.0);
+                final radius =
+                    widget.startBorderRadius +
+                    (widget.endBorderRadius - widget.startBorderRadius) * t;
+                final glassSettings = _lerpGlassSettings(
+                  widget.startGlassSettings,
+                  widget.endGlassSettings,
+                  t,
+                );
+                final incomingScale = lerpDouble(2.94, 1.0, t)!;
+                final outgoingScale = lerpDouble(1.0, 2.94, t)!;
+                final toScale = isPush ? incomingScale : outgoingScale;
+                final fromScale = isPush ? outgoingScale : incomingScale;
+                final blurContentFrom = !isPush
+                    ? lerpDouble(50, 0, t)!
+                    : lerpDouble(0, 50, t)!;
+                final blurContentTo = isPush
+                    ? lerpDouble(50, 0, t)!
+                    : lerpDouble(0, 50, t)!;
+
+                final shuttleSize = MediaQuery.sizeOf(context);
+                return _ShuttleWithMeasuredContent(
+                  shuttleSize: shuttleSize,
+                  toContent: toContent,
+                  fromContent: fromContent,
+                  isPush: isPush,
+                  toOpacity: toOpacity,
+                  fromOpacity: fromOpacity,
+                  toScale: toScale,
+                  fromScale: fromScale,
+                  blurContentTo: blurContentTo,
+                  blurContentFrom: blurContentFrom,
+                  glassSettings: glassSettings,
+                  radius: radius,
+                  endBorderRadius: widget.endBorderRadius,
+                );
+              },
+            );
+          },
+      child: _GlassWrapper(
+        key: _panelKey,
+        borderRadius: widget.endBorderRadius,
+        glassSettings:
+            widget.glassSettingsNotifier?.value ?? widget.endGlassSettings,
+        child: GlassHeroContent(
+          child: Material(color: Colors.transparent, child: widget.child),
+        ),
+      ),
+    );
+    final positionedChild = dynamicRect != null
+        ? SizedBox(
+            width: dynamicRect.width,
+            height: dynamicRect.height,
+            child: hero,
+          )
+        : hero;
     return _GlassHeroFlightTSync(
       routeAnimation: widget.routeAnimation,
       child: Stack(
@@ -449,148 +579,7 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
           Positioned(
             top: effectivePosition.dy,
             left: effectivePosition.dx,
-            child: Hero(
-              tag: widget.heroTag,
-              transitionOnUserGestures: true,
-              createRectTween: (begin, end) => _CurvedRectTween(
-                begin: begin,
-                end: end,
-                curve: widget.flightCurve,
-              ),
-
-              flightShuttleBuilder:
-                  (
-                    BuildContext flightContext,
-                    Animation<double> animation,
-                    HeroFlightDirection flightDirection,
-                    BuildContext fromHeroContext,
-                    BuildContext toHeroContext,
-                  ) {
-                    final fromContent = _extractGlassHeroContent(
-                      (fromHeroContext.widget as Hero).child,
-                    );
-                    final toContent = _extractGlassHeroContent(
-                      (toHeroContext.widget as Hero).child,
-                    );
-                    final isPush = flightDirection == HeroFlightDirection.push;
-                    return ValueListenableBuilder(
-                      valueListenable: animation,
-                      builder: (BuildContext context, double value, Widget? _) {
-                        final t = value.clamp(0.0, 1.0);
-                        final fromOpacity = (1 - t).clamp(0.0, 1.0);
-                        final toOpacity = t.clamp(0.0, 1.0);
-                        final radius =
-                            widget.startBorderRadius +
-                            (widget.endBorderRadius -
-                                    widget.startBorderRadius) *
-                                t;
-                        final glassSettings = _lerpGlassSettings(
-                          widget.startGlassSettings,
-                          widget.endGlassSettings,
-                          t,
-                        );
-                        final incomingScale = lerpDouble(2.94, 1.0, t)!;
-                        final outgoingScale = lerpDouble(1.0, 2.94, t)!;
-                        final toScale = isPush ? incomingScale : outgoingScale;
-                        final fromScale = isPush
-                            ? outgoingScale
-                            : incomingScale;
-                        final blurContentFrom = !isPush
-                            ? lerpDouble(50, 0, t)!
-                            : lerpDouble(0, 50, t)!;
-                        final blurContentTo = isPush
-                            ? lerpDouble(50, 0, t)!
-                            : lerpDouble(0, 50, t)!;
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: _GlassWrapper(
-                            borderRadius: widget.endBorderRadius,
-                            glassSettings: glassSettings,
-                            child: ClipRRect(
-                              borderRadius: BorderRadiusGeometry.all(
-                                Radius.elliptical(radius, radius),
-                              ),
-                              child: IgnorePointer(
-                                ignoring: true,
-                                child: SizedBox(
-                                  width: MediaQuery.of(context).size.width,
-                                  height: MediaQuery.of(context).size.height,
-                                  child: Stack(
-                                    clipBehavior: Clip.hardEdge,
-                                    fit: StackFit.loose,
-                                    children: [
-                                      Positioned(
-                                        child: ImageFiltered(
-                                          imageFilter: ImageFilter.blur(
-                                            sigmaX: blurContentTo,
-                                            sigmaY: blurContentTo,
-                                          ),
-                                          child: Opacity(
-                                            opacity: isPush
-                                                ? toOpacity
-                                                : fromOpacity,
-                                            child: Transform.scale(
-                                              alignment: Alignment.center,
-                                              scale: toScale,
-                                              child: OverflowBox(
-                                                maxWidth: double.infinity,
-                                                maxHeight: double.infinity,
-                                                minHeight: 0,
-                                                minWidth: 0,
-                                                child: toContent,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        child: ImageFiltered(
-                                          imageFilter: ImageFilter.blur(
-                                            sigmaX: blurContentFrom,
-                                            sigmaY: blurContentFrom,
-                                          ),
-                                          child: Opacity(
-                                            opacity: isPush
-                                                ? fromOpacity
-                                                : toOpacity,
-                                            child: Transform.scale(
-                                              alignment: Alignment.topLeft,
-                                              scale: fromScale,
-                                              child: OverflowBox(
-                                                maxWidth: double.infinity,
-                                                maxHeight: double.infinity,
-                                                minHeight: 0,
-                                                minWidth: 0,
-                                                alignment: Alignment.topLeft,
-                                                child: fromContent,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-              child: _GlassWrapper(
-                key: _panelKey,
-                borderRadius: widget.endBorderRadius,
-                glassSettings: widget.endGlassSettings,
-                child: GlassHeroContent(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: widget.child,
-                  ),
-                ),
-              ),
-            ),
+            child: positionedChild,
           ),
         ],
       ),
@@ -655,4 +644,172 @@ class _CurvedRectTween extends RectTween {
 
   @override
   Rect? lerp(double t) => super.lerp(curve.transform(t));
+}
+
+/// Shuttle с измерением реального размера toContent/fromContent после layout.
+class _ShuttleWithMeasuredContent extends StatefulWidget {
+  const _ShuttleWithMeasuredContent({
+    required this.shuttleSize,
+    required this.toContent,
+    required this.fromContent,
+    required this.isPush,
+    required this.toOpacity,
+    required this.fromOpacity,
+    required this.toScale,
+    required this.fromScale,
+    required this.blurContentTo,
+    required this.blurContentFrom,
+    required this.glassSettings,
+    required this.radius,
+    required this.endBorderRadius,
+  });
+
+  final Size shuttleSize;
+  final Widget toContent;
+  final Widget fromContent;
+  final bool isPush;
+  final double toOpacity;
+  final double fromOpacity;
+  final double toScale;
+  final double fromScale;
+  final double blurContentTo;
+  final double blurContentFrom;
+  final LiquidGlassSettings glassSettings;
+  final double radius;
+  final double endBorderRadius;
+
+  @override
+  State<_ShuttleWithMeasuredContent> createState() =>
+      _ShuttleWithMeasuredContentState();
+}
+
+class _ShuttleWithMeasuredContentState
+    extends State<_ShuttleWithMeasuredContent> {
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: _GlassWrapper(
+        borderRadius: widget.endBorderRadius,
+        glassSettings: widget.glassSettings,
+        child: ClipRRect(
+          borderRadius: BorderRadiusGeometry.all(
+            Radius.elliptical(widget.radius, widget.radius),
+          ),
+          child: IgnorePointer(
+            ignoring: false,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    fit: StackFit.loose,
+                    children: [
+                      Positioned(
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(
+                            sigmaX: widget.blurContentTo,
+                            sigmaY: widget.blurContentTo,
+                          ),
+                          child: Opacity(
+                            opacity: widget.isPush
+                                ? widget.toOpacity
+                                : widget.fromOpacity,
+                            child: Transform.scale(
+                              alignment: Alignment.center,
+                              scale: widget.toScale,
+                              child: OverflowBox(
+                                maxWidth: double.infinity,
+                                maxHeight: double.infinity,
+                                minHeight: 0,
+                                minWidth: 0,
+                                child: widget.toContent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(
+                            sigmaX: widget.blurContentFrom,
+                            sigmaY: widget.blurContentFrom,
+                          ),
+                          child: Opacity(
+                            opacity: widget.isPush
+                                ? widget.fromOpacity
+                                : widget.toOpacity,
+                            child: Transform.scale(
+                              alignment: Alignment.topLeft,
+                              scale: widget.fromScale,
+                              child: SizedBox(
+                                child: OverflowBox(
+                                  maxWidth: double.infinity,
+                                  maxHeight: double.infinity,
+                                  minHeight: 0,
+                                  minWidth: 0,
+                                  child: widget.fromContent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Измеряет размер [child] после layout и передаёт в [onSize] (в post-frame, чтобы можно было setState).
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onSize, required super.child});
+
+  final void Function(Size) onSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderMeasureSize(onSize: onSize);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderMeasureSize renderObject,
+  ) {
+    renderObject.onSize = onSize;
+  }
+}
+
+class _RenderMeasureSize extends RenderProxyBox {
+  _RenderMeasureSize({void Function(Size)? onSize}) : _onSize = onSize;
+
+  void Function(Size)? _onSize;
+  set onSize(void Function(Size)? value) {
+    if (_onSize != value) _onSize = value;
+  }
+
+  @override
+  void performLayout() {
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child!.layout(constraints, parentUsesSize: true);
+    size = child!.size;
+    final measuredSize = size;
+    final callback = _onSize;
+    if (callback != null) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (_) => callback(measuredSize),
+      );
+    }
+  }
 }

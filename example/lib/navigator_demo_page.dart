@@ -125,28 +125,50 @@ class _NavigatorDemoPageState extends State<NavigatorDemoPage> {
       return;
     }
 
+    final size = MediaQuery.sizeOf(context);
+    const collapsedHeight = 280.0;
+    const collapsedPadding = 8.0;
+    final initialRect = Rect.fromLTWH(
+      collapsedPadding,
+      size.height - collapsedHeight - collapsedPadding,
+      size.width - 2 * collapsedPadding,
+      collapsedHeight,
+    );
+    final panelRectNotifier = ValueNotifier<Rect?>(initialRect);
+    const collapsedGlass = LiquidGlassSettings(
+      blur: 22,
+      lightAngle: 18,
+      lightIntensity: 0.35,
+      glassColor: Colors.black,
+    );
+    const expandedGlass = LiquidGlassSettings(
+      blur: 24,
+      lightAngle: 0,
+      lightIntensity: 0,
+      glassColor: Colors.red,
+      chromaticAberration: 0,
+    );
+    final glassSettingsNotifier = ValueNotifier<LiquidGlassSettings>(
+      collapsedGlass,
+    );
+
     pushGlassCoreRoute(
       context,
       heroTag: _heroTag,
-      startGlassSettings: const LiquidGlassSettings(
-        blur: 22,
-        lightAngle: 18,
-        lightIntensity: 0.35,
-        glassColor: Colors.black,
-      ),
+      startGlassSettings: collapsedGlass,
       startBorderRadius: 34,
-      glassSettings: const LiquidGlassSettings(
-        blur: 24,
-        lightAngle: 12,
-        glassColor: Colors.black,
-      ),
-      position: Offset(8, MediaQuery.sizeOf(context).height - 280 - 8),
+      glassSettings: collapsedGlass,
+      panelRectNotifier: panelRectNotifier,
+      glassSettingsNotifier: glassSettingsNotifier,
       positionPadding: 0,
       borderRadius: screenRadius.bottomLeft - 8,
       barrierDismiss: true,
-      child: Container(
-        width: MediaQuery.sizeOf(context).width - 16,
-        height: 280,
+      child: _DraggableModalSheetContent(
+        panelRectNotifier: panelRectNotifier,
+        glassSettingsNotifier: glassSettingsNotifier,
+        startGlassSettings: collapsedGlass,
+        endGlassSettings: expandedGlass,
+        borderRadius: screenRadius.bottomLeft - 8,
       ),
     );
   }
@@ -375,6 +397,164 @@ class _NavigatorDemoPageState extends State<NavigatorDemoPage> {
           ],
           stops: [0.0, 0.35, 0.7, 1.0],
         ),
+      ),
+    );
+  }
+}
+
+/// Модалка в примере: тянем вверх — панель роута растёт, отступы и стекло плавно меняются.
+/// [panelRectNotifier] и [glassSettingsNotifier] обновляются при драге.
+class _DraggableModalSheetContent extends StatefulWidget {
+  const _DraggableModalSheetContent({
+    required this.panelRectNotifier,
+    required this.glassSettingsNotifier,
+    required this.startGlassSettings,
+    required this.endGlassSettings,
+    required this.borderRadius,
+  });
+
+  final ValueNotifier<Rect?> panelRectNotifier;
+  final ValueNotifier<LiquidGlassSettings> glassSettingsNotifier;
+  final LiquidGlassSettings startGlassSettings;
+  final LiquidGlassSettings endGlassSettings;
+  final double borderRadius;
+
+  @override
+  State<_DraggableModalSheetContent> createState() =>
+      _DraggableModalSheetContentState();
+}
+
+class _DraggableModalSheetContentState
+    extends State<_DraggableModalSheetContent>
+    with SingleTickerProviderStateMixin {
+  static const double _collapsedHeight = 280;
+  static const double _collapsedPadding = 8;
+
+  double _expansion = 0.0;
+  late AnimationController _snapController;
+  double _snapStart = 0;
+  double _snapTarget = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _snapController.addListener(() {
+      if (_snapController.isAnimating) setState(() {});
+    });
+    _snapController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _expansion = _snapTarget;
+        _snapController.reset();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
+  }
+
+  double get _effectiveExpansion {
+    if (_snapController.isAnimating) {
+      final t = Curves.easeOutCubic.transform(_snapController.value);
+      return _snapStart + t * (_snapTarget - _snapStart);
+    }
+    return _expansion;
+  }
+
+  void _snapTo(double target) {
+    _snapStart = _expansion;
+    _snapTarget = target;
+    _snapController.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final screenHeight = size.height;
+    final exp = _effectiveExpansion;
+
+    final height = _collapsedHeight + exp * (screenHeight - _collapsedHeight);
+    final horizontalPadding = _collapsedPadding * (1 - exp);
+    final bottomPadding = _collapsedPadding * (1 - exp);
+    final rect = Rect.fromLTWH(
+      horizontalPadding,
+      screenHeight - height - bottomPadding,
+      size.width - 2 * horizontalPadding,
+      height,
+    );
+    final glass = lerpLiquidGlassSettings(
+      widget.startGlassSettings,
+      widget.endGlassSettings,
+      exp,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.panelRectNotifier.value != rect) {
+        widget.panelRectNotifier.value = rect;
+      }
+      widget.glassSettingsNotifier.value = glass;
+    });
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (details) {
+        if (_snapController.isAnimating) return;
+        setState(() {
+          _expansion -= details.delta.dy / screenHeight;
+          _expansion = _expansion.clamp(0.0, 1.0);
+        });
+      },
+      onVerticalDragEnd: (details) {
+        if (_snapController.isAnimating) return;
+        final threshold = 0.5;
+        final target = _expansion >= threshold ? 1.0 : 0.0;
+        _snapTo(target);
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Явная высота вместо Expanded — нет overflow в shuttle Hero.
+          final maxH = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : _collapsedHeight;
+          final contentHeight = (maxH - 12 - 4 - 12).clamp(
+            0.0,
+            double.infinity,
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: contentHeight,
+                child: Center(
+                  child: Text(
+                    'Потяни вверх — панель растёт, отступы → 0',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
