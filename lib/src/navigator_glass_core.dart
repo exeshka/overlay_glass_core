@@ -1,4 +1,4 @@
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show lerpDouble, ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart' show Color;
@@ -90,8 +90,12 @@ class _GlassCoreHeroTriggerRegistry {
     if (key == null) return null;
     final box = key.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
-    return Rect.fromLTWH(0, 0, box.size.width, box.size.height)
-        .shift(box.localToGlobal(Offset.zero));
+    return Rect.fromLTWH(
+      0,
+      0,
+      box.size.width,
+      box.size.height,
+    ).shift(box.localToGlobal(Offset.zero));
   }
 }
 
@@ -142,17 +146,6 @@ class _GlassWrapper extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Tween для Hero flight по значению из Motor (ValueNotifier обновляется в shuttle).
-class _MotorRectTween extends Tween<Rect?> {
-  _MotorRectTween({super.begin, super.end, required this.valueNotifier});
-
-  final ValueNotifier<double> valueNotifier;
-
-  @override
-  Rect? lerp(double t) =>
-      Rect.lerp(begin, end, valueNotifier.value.clamp(0.0, 1.0));
 }
 
 /// Вычисляет top-left панели от триггера: выше или ниже, чтобы влезало в экран.
@@ -266,15 +259,17 @@ Future<T?> pushGlassCoreRoute<T>(
 }) {
   final startGlass = startGlassSettings ?? glassSettings;
   final startRadius = startBorderRadius ?? borderRadius;
-  final motion = flightMotion ?? CupertinoMotion.bouncy();
+  final motion = flightMotion ?? CupertinoMotion.smooth();
   return Navigator.of(context).push<T>(
     PageRouteBuilder<T>(
       opaque: false,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
       maintainState: true,
-      transitionDuration: const Duration(milliseconds: 450),
-      reverseTransitionDuration: const Duration(milliseconds: 450),
+      transitionDuration: const Duration(milliseconds: 550),
+      reverseTransitionDuration: const Duration(milliseconds: 550),
+      // transitionDuration: const Duration(milliseconds: 2000),
+      // reverseTransitionDuration: const Duration(milliseconds: 2000),
       pageBuilder:
           (
             BuildContext context,
@@ -308,23 +303,23 @@ Future<T?> pushGlassCoreRoute<T>(
               child: child,
             );
           },
-      transitionsBuilder:
-          (
-            BuildContext context,
-            Animation<double> animation,
-            Animation<double> secondaryAnimation,
-            Widget child,
-          ) {
-            // Явно перестраиваем каждый кадр — иначе анимация тикает только 0 и 1.
-            return SingleMotionBuilder(
-              value: animation.value,
-              motion: CupertinoMotion.bouncy(),
-              builder: (context, value, child) {
-                return child!;
-              },
-              child: child,
-            );
-          },
+      // transitionsBuilder:
+      //     (
+      //       BuildContext context,
+      //       Animation<double> animation,
+      //       Animation<double> secondaryAnimation,
+      //       Widget child,
+      //     ) {
+      //       // Явно перестраиваем каждый кадр — иначе анимация тикает только 0 и 1.
+      //       return SingleMotionBuilder(
+      //         value: animation.value,
+      //         motion: CupertinoMotion.bouncy(),
+      //         builder: (context, value, child) {
+      //           return child!;
+      //         },
+      //         child: child,
+      //       );
+      //     },
     ),
   );
 }
@@ -457,12 +452,12 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
             child: Hero(
               tag: widget.heroTag,
               transitionOnUserGestures: true,
-
-              createRectTween: (Rect? begin, Rect? end) => _MotorRectTween(
+              createRectTween: (begin, end) => _CurvedRectTween(
                 begin: begin,
                 end: end,
-                valueNotifier: _glassHeroFlightT,
+                curve: widget.flightCurve,
               ),
+
               flightShuttleBuilder:
                   (
                     BuildContext flightContext,
@@ -479,7 +474,7 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
                     );
                     final isPush = flightDirection == HeroFlightDirection.push;
                     return ValueListenableBuilder(
-                      valueListenable: _glassHeroFlightT,
+                      valueListenable: animation,
                       builder: (BuildContext context, double value, Widget? _) {
                         final t = value.clamp(0.0, 1.0);
                         final fromOpacity = (1 - t).clamp(0.0, 1.0);
@@ -494,6 +489,19 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
                           widget.endGlassSettings,
                           t,
                         );
+                        final incomingScale = lerpDouble(2.94, 1.0, t)!;
+                        final outgoingScale = lerpDouble(1.0, 2.94, t)!;
+                        final toScale = isPush ? incomingScale : outgoingScale;
+                        final fromScale = isPush
+                            ? outgoingScale
+                            : incomingScale;
+                        final blurContentFrom = !isPush
+                            ? lerpDouble(50, 0, t)!
+                            : lerpDouble(0, 50, t)!;
+                        final blurContentTo = isPush
+                            ? lerpDouble(50, 0, t)!
+                            : lerpDouble(0, 50, t)!;
+
                         return Material(
                           color: Colors.transparent,
                           child: _GlassWrapper(
@@ -503,43 +511,66 @@ class _GlassCoreRoutePageState<T> extends State<_GlassCoreRoutePage<T>> {
                               borderRadius: BorderRadiusGeometry.all(
                                 Radius.elliptical(radius, radius),
                               ),
-                              child: SizedBox(
-                                width: MediaQuery.of(context).size.width,
-                                height: MediaQuery.of(context).size.height,
-                                child: Stack(
-                                  clipBehavior: Clip.hardEdge,
-                                  fit: StackFit.loose,
-                                  children: [
-                                    Positioned(
-                                      child: Opacity(
-                                        opacity: isPush
-                                            ? toOpacity
-                                            : fromOpacity,
-                                        child: OverflowBox(
-                                          maxWidth: double.infinity,
-                                          maxHeight: double.infinity,
-                                          minHeight: 0,
-                                          minWidth: 0,
-                                          child: toContent,
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: SizedBox(
+                                  width: MediaQuery.of(context).size.width,
+                                  height: MediaQuery.of(context).size.height,
+                                  child: Stack(
+                                    clipBehavior: Clip.hardEdge,
+                                    fit: StackFit.loose,
+                                    children: [
+                                      Positioned(
+                                        child: ImageFiltered(
+                                          imageFilter: ImageFilter.blur(
+                                            sigmaX: blurContentTo,
+                                            sigmaY: blurContentTo,
+                                          ),
+                                          child: Opacity(
+                                            opacity: isPush
+                                                ? toOpacity
+                                                : fromOpacity,
+                                            child: Transform.scale(
+                                              alignment: Alignment.center,
+                                              scale: toScale,
+                                              child: OverflowBox(
+                                                maxWidth: double.infinity,
+                                                maxHeight: double.infinity,
+                                                minHeight: 0,
+                                                minWidth: 0,
+                                                child: toContent,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    Positioned(
-                                      child: Opacity(
-                                        opacity: isPush
-                                            ? fromOpacity
-                                            : toOpacity,
-                                        child: OverflowBox(
-                                          maxWidth: double.infinity,
-                                          maxHeight: double.infinity,
-                                          minHeight: 0,
-                                          minWidth: 0,
-                                          alignment: Alignment.topLeft,
-                                          child: fromContent,
+                                      Positioned(
+                                        child: ImageFiltered(
+                                          imageFilter: ImageFilter.blur(
+                                            sigmaX: blurContentFrom,
+                                            sigmaY: blurContentFrom,
+                                          ),
+                                          child: Opacity(
+                                            opacity: isPush
+                                                ? fromOpacity
+                                                : toOpacity,
+                                            child: Transform.scale(
+                                              alignment: Alignment.topLeft,
+                                              scale: fromScale,
+                                              child: OverflowBox(
+                                                maxWidth: double.infinity,
+                                                maxHeight: double.infinity,
+                                                minHeight: 0,
+                                                minWidth: 0,
+                                                alignment: Alignment.topLeft,
+                                                child: fromContent,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -613,4 +644,15 @@ class _GlassHeroFlightTSyncState extends State<_GlassHeroFlightTSync> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// Rect tween that applies a curve to the Hero's flight bounds
+/// (so изменение размеров/позиции между первым и вторым виджетом — нелинейное).
+class _CurvedRectTween extends RectTween {
+  _CurvedRectTween({super.begin, super.end, required this.curve});
+
+  final Curve curve;
+
+  @override
+  Rect? lerp(double t) => super.lerp(curve.transform(t));
 }

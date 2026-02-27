@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - screen_corner_radius (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - screen_corner_radius (from `.symlinks/plugins/screen_corner_radius/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  screen_corner_radius:
+    :path: ".symlinks/plugins/screen_corner_radius/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  screen_corner_radius: 64e0abb3920228a5f91c0680fa890222970025bd
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2

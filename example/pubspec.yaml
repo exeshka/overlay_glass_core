@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   overlay_glass_core:
     path: ../
+  screen_corner_radius: ^3.0.0
 
 dev_dependencies:
   flutter_test:

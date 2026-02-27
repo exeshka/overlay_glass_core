@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:overlay_glass_core/overlay_glass_core.dart';
+import 'package:screen_corner_radius/screen_corner_radius.dart';
 
 /// Demo page for the Navigator + Hero variant: trigger opens a glass panel
 /// as a route (pushGlassCoreRoute) with Hero transition.
@@ -77,30 +78,75 @@ class _NavigatorDemoPageState extends State<NavigatorDemoPage> {
           blur: 22,
           lightAngle: 18,
           lightIntensity: 0.35,
+          glassColor: Colors.black,
         ),
         startBorderRadius: 34,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: () => _openMenu(context),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(CupertinoIcons.square_arrow_down),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () => _openMenu(context),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(CupertinoIcons.square_arrow_down),
+                ),
               ),
-            ),
-            GestureDetector(
-              onTap: () => _openMenu2(context),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(CupertinoIcons.square_arrow_down),
+              GestureDetector(
+                onTap: () => _openMenu2(context),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(CupertinoIcons.square_arrow_down),
+                ),
               ),
-            ),
-          ],
+              GestureDetector(
+                onTap: () => openModalSheet(context),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(CupertinoIcons.money_dollar),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void openModalSheet(BuildContext context) async {
+    final ScreenRadius? screenRadius = await ScreenCornerRadius.get();
+
+    if (screenRadius == null) {
+      return;
+    }
+
+    pushGlassCoreRoute(
+      context,
+      heroTag: _heroTag,
+      startGlassSettings: const LiquidGlassSettings(
+        blur: 22,
+        lightAngle: 18,
+        lightIntensity: 0.35,
+        glassColor: Colors.black,
+      ),
+      startBorderRadius: 34,
+      glassSettings: const LiquidGlassSettings(
+        blur: 24,
+        lightAngle: 12,
+        glassColor: Colors.black,
+      ),
+      position: Offset(8, MediaQuery.sizeOf(context).height - 280 - 8),
+      positionPadding: 0,
+      borderRadius: screenRadius.bottomLeft - 8,
+      barrierDismiss: true,
+      child: Container(
+        width: MediaQuery.sizeOf(context).width - 16,
+        height: 280,
       ),
     );
   }
@@ -113,9 +159,14 @@ class _NavigatorDemoPageState extends State<NavigatorDemoPage> {
         blur: 22,
         lightAngle: 18,
         lightIntensity: 0.35,
+        glassColor: Colors.black,
       ),
       startBorderRadius: 34,
-      glassSettings: const LiquidGlassSettings(blur: 24, lightAngle: 12),
+      glassSettings: const LiquidGlassSettings(
+        blur: 24,
+        lightAngle: 12,
+        glassColor: Colors.black,
+      ),
       barrierDismiss: true,
       child: _buildSettingsOverlay(),
     );
@@ -207,9 +258,14 @@ class _NavigatorDemoPageState extends State<NavigatorDemoPage> {
         blur: 22,
         lightAngle: 18,
         lightIntensity: 0.35,
+        glassColor: Colors.black,
       ),
       startBorderRadius: 34,
-      glassSettings: const LiquidGlassSettings(blur: 24, lightAngle: 12),
+      glassSettings: const LiquidGlassSettings(
+        blur: 24,
+        lightAngle: 12,
+        glassColor: Colors.blue,
+      ),
       barrierDismiss: true,
 
       child: _buildMenuContent(),
